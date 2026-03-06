@@ -1,4 +1,4 @@
-#include "../inc/so_long.h"
+#include "so_long.h"
 
 void Map::loadFromGrid(std::vector<std::string> grid)
 {

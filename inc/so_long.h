@@ -9,6 +9,10 @@
 # include <algorithm>
 # include <stdexcept>
 # include <cmath>
+#include <random>
+#include <stack>
+#include <queue>
+#include <utility>
 
 constexpr char	FLOOR   = '0';
 constexpr char	WALL    = '1';
