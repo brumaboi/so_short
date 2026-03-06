@@ -1,14 +1,29 @@
 #include "../inc/so_long.h"
 
-Game::Game(const std::string &mapPath)
+Game::Game()
 {
-	_map.load(mapPath);
+	_level = 1;
+	_loadLevel();
+	_renderer.init(_map, _player.pos);
+	_rendererReady = true;
+	_lastTick = SDL_GetTicks();
+}
+
+void Game::_loadLevel()
+{
+	auto grid = generateMaze(_level);
+	_map = Map();
+	_map.loadFromGrid(std::move(grid));
 	_map.validate();
-	_renderer.init(_map);
-	Vec2 pp = _map.playerPos();
-	_playerPx = { (float)(pp.x * TILE_SIZE), (float)(pp.y * TILE_SIZE) };
-	_targetPx = _playerPx;
-	_startPx = _playerPx;
+	_map.extractEntities(_player, _entities);
+
+	_totalCollectibles = 0;
+	for (auto &e : _entities)
+		if (e.kind == EntityKind::Collectible)
+			_totalCollectibles++;
+
+	if (_rendererReady)
+		_renderer.rebuildMapTex(_map);
 }
 
 void Game::run()
@@ -16,34 +31,108 @@ void Game::run()
 	_running = true;
 	while (_running)
 	{
-		_handleEvents();
-		_update();
-		_renderer.updateCamera(_map, _playerPx);
-		_renderer.render(_map, _playerPx);
+		Uint32 now = SDL_GetTicks();
+		float dt = (now - _lastTick) / 1000.0f;
+		if (dt > 0.05f) dt = 0.05f;
+		_lastTick = now;
+
+		if (_paused)
+		{
+			_handlePauseEvents();
+			_renderer.render(_map, _player, _entities, _totalCollectibles);
+			_renderer.renderPauseOverlay(_pauseSelection, _level);
+			_renderer.present();
+		}
+		else
+		{
+			_handleEvents();
+			_update(dt);
+			_renderer.updateCamera(_map, _player.pos);
+			_renderer.render(_map, _player, _entities, _totalCollectibles);
+			_renderer.present();
+		}
 	}
 }
 
-void Game::_update()
+bool Game::_canMoveTo(float px, float py) const
 {
-	if (!_animating)
-		return;
+	const float margin = 2.0f;
+	float left   = px + margin;
+	float right  = px + TILE_SIZE - margin;
+	float top    = py + margin;
+	float bottom = py + TILE_SIZE - margin;
 
-	_animFrame++;
-	if (_animFrame >= MOVE_FRAMES)
+	auto blocked = [&](float fx, float fy) -> bool {
+		int col = (int)(fx) / TILE_SIZE;
+		int row = (int)(fy) / TILE_SIZE;
+		return _map.isWall(row, col);
+	};
+
+	return !blocked(left, top)    && !blocked(right, top) &&
+	       !blocked(left, bottom) && !blocked(right, bottom);
+}
+
+void Game::_checkEntityCollisions()
+{
+	float cx = _player.pos.x + TILE_SIZE / 2.0f;
+	float cy = _player.pos.y + TILE_SIZE / 2.0f;
+	int pcol = (int)(cx) / TILE_SIZE;
+	int prow = (int)(cy) / TILE_SIZE;
+
+	for (auto &e : _entities)
 	{
-		_playerPx = _targetPx;
-		_animating = false;
-		_animFrame = 0;
-	}
-	else
-	{
-		float t = (float)_animFrame / (float)MOVE_FRAMES;
-		_playerPx.x = _startPx.x + (_targetPx.x - _startPx.x) * t;
-		_playerPx.y = _startPx.y + (_targetPx.y - _startPx.y) * t;
+		if (!e.active)
+			continue;
+		if (e.tile.x != pcol || e.tile.y != prow)
+			continue;
+
+		if (e.kind == EntityKind::Collectible)
+		{
+			e.active = false;
+			_player.collected++;
+		}
+		else if (e.kind == EntityKind::Exit)
+		{
+			if (_player.collected >= _totalCollectibles)
+			{
+				_level++;
+				_loadLevel();
+				_lastTick = SDL_GetTicks();
+				return;
+			}
+		}
 	}
 }
 
-void Game::_handleEvents()
+void Game::_update(float dt)
+{
+	const Uint8 *keys = SDL_GetKeyboardState(nullptr);
+	_player.vel = { 0, 0 };
+
+	if (keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP])    _player.vel.y = -PLAYER_SPEED;
+	if (keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_DOWN])  _player.vel.y =  PLAYER_SPEED;
+	if (keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_LEFT])  _player.vel.x = -PLAYER_SPEED;
+	if (keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT]) _player.vel.x =  PLAYER_SPEED;
+
+	if (_player.vel.x != 0 && _player.vel.y != 0)
+	{
+		float inv = 1.0f / std::sqrt(2.0f);
+		_player.vel.x *= inv;
+		_player.vel.y *= inv;
+	}
+
+	float newX = _player.pos.x + _player.vel.x * dt;
+	float newY = _player.pos.y + _player.vel.y * dt;
+
+	if (_canMoveTo(newX, _player.pos.y))
+		_player.pos.x = newX;
+	if (_canMoveTo(_player.pos.x, newY))
+		_player.pos.y = newY;
+
+	_checkEntityCollisions();
+}
+
+void Game::_handlePauseEvents()
 {
 	SDL_Event event;
 	while (SDL_PollEvent(&event))
@@ -57,65 +146,54 @@ void Game::_handleEvents()
 			continue;
 		switch (event.key.keysym.sym)
 		{
-			case SDLK_ESCAPE:              _running = false;   break;
-			case SDLK_UP:    case SDLK_w:  _movePlayer( 0, -1); break;
-			case SDLK_DOWN:  case SDLK_s:  _movePlayer( 0,  1); break;
-			case SDLK_LEFT:  case SDLK_a:  _movePlayer(-1,  0); break;
-			case SDLK_RIGHT: case SDLK_d:  _movePlayer( 1,  0); break;
+			case SDLK_ESCAPE:
+				_paused = false;
+				_lastTick = SDL_GetTicks();
+				break;
+			case SDLK_UP:   case SDLK_w:
+				_pauseSelection = (_pauseSelection + 1) % 2;
+				break;
+			case SDLK_DOWN: case SDLK_s:
+				_pauseSelection = (_pauseSelection + 1) % 2;
+				break;
+			case SDLK_RETURN: case SDLK_SPACE:
+				if (_pauseSelection == 0)
+				{
+					_paused = false;
+					_lastTick = SDL_GetTicks();
+				}
+				else
+					_running = false;
+				break;
 			default: break;
 		}
 	}
 }
 
-void Game::_movePlayer(int dx, int dy)
+void Game::_handleEvents()
 {
-	if (_animating)
-		return;
-
-	Vec2 pos  = _map.playerPos();
-	int  newX = pos.x + dx;
-	int  newY = pos.y + dy;
-
-	if (newX < 0 || newX >= _map.cols() || newY < 0 || newY >= _map.rows())
-		return;
-
-	char tile = _map.at(newY, newX);
-	if (tile == WALL)
-		return;
-	if (tile == EXIT && _map.collectibles() > 0)
-		return;
-
-	if (tile == COLLECT)
+	SDL_Event event;
+	while (SDL_PollEvent(&event))
 	{
-		_map.removeCollectible(newY, newX);
-		_renderer.markMapDirty();
-		if (_map.collectibles() == 0)
-			_renderer.markMapDirty();
+		if (event.type == SDL_QUIT)
+		{
+			_running = false;
+			return;
+		}
+		if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)
+		{
+			_paused = true;
+			_pauseSelection = 0;
+			return;
+		}
 	}
-
-	if (tile == EXIT && _map.collectibles() == 0)
-	{
-		_running = false;
-		return;
-	}
-
-	_map.movePlayer(newY, newX);
-	_startPx = _playerPx;
-	_targetPx = { (float)(newX * TILE_SIZE), (float)(newY * TILE_SIZE) };
-	_animating = true;
-	_animFrame = 0;
 }
 
-int main(int argc, char **argv)
+int main()
 {
-	if (argc != 2)
-	{
-		std::cerr << "Usage: ./so_long <map.ber>" << std::endl;
-		return 1;
-	}
 	try
 	{
-		Game game(argv[1]);
+		Game game;
 		game.run();
 	}
 	catch (const std::exception &e)

@@ -1,4 +1,4 @@
-NAME			=	so_long
+NAME			=	so_short
 CXX				=	g++
 CXXFLAGS		=	-Wall -Wextra -Werror -std=c++17
 RM				=	rm -f
@@ -12,6 +12,7 @@ OBJ_DIR			= 	obj/
 	   
 SRC 			= $(SRC_DIR)Game.cpp \
 				  $(SRC_DIR)Map.cpp \
+				  $(SRC_DIR)MazeGenerator.cpp \
 				  $(SRC_DIR)Renderer.cpp
 				  
 		

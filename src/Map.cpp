@@ -1,57 +1,12 @@
 #include "../inc/so_long.h"
 
-void Map::_checkFormat(const std::string &path)
+void Map::loadFromGrid(std::vector<std::string> grid)
 {
-	auto dot = path.rfind('.');
-	if (dot == std::string::npos || path.substr(dot) != ".ber")
-		throw std::runtime_error("Invalid file format (expected .ber)");
-}
-
-void Map::_readFile(const std::string &path)
-{
-	std::ifstream file(path);
-	if (!file.is_open())
-		throw std::runtime_error("Failed to open file: " + path);
-
-	std::string line;
-	while (std::getline(file, line))
-	{
-		if (!line.empty() && line.back() == '\r')
-			line.pop_back();
-		_grid.push_back(line);
-	}
+	_grid = std::move(grid);
 	_rows = static_cast<int>(_grid.size());
 	if (_rows == 0)
-		throw std::runtime_error("Map file is empty");
-}
-
-void Map::_trimRows()
-{
-	size_t maxLen = 0;
-	for (auto &row : _grid)
-	{
-		while (!row.empty() && (row.back() == '\n' || row.back() == '\r'))
-			row.pop_back();
-		maxLen = std::max(maxLen, row.length());
-	}
-	_cols = static_cast<int>(maxLen);
-}
-
-void Map::_checkEmptyLines()
-{
-	if (_grid[0].empty() || _grid[_rows - 1].empty())
-		throw std::runtime_error("Map has empty border lines");
-	for (int i = 0; i < _rows - 1; i++)
-		if (_grid[i].empty() && _grid[i + 1].empty())
-			throw std::runtime_error("Map has consecutive empty lines");
-}
-
-void Map::load(const std::string &path)
-{
-	_checkFormat(path);
-	_readFile(path);
-	_trimRows();
-	_checkEmptyLines();
+		throw std::runtime_error("Generated maze is empty");
+	_cols = static_cast<int>(_grid[0].size());
 }
 
 void Map::_checkWalls()
@@ -89,7 +44,7 @@ void Map::_countElements()
 			char c = _grid[i][j];
 			if (c == PLAYER) { _players++; _playerPos = {j, i}; }
 			if (c == COLLECT) _collectibles++;
-			if (c == EXIT)   { _exits++; _exitPos = {j, i}; }
+			if (c == EXIT)   _exits++;
 		}
 	if (_players != 1)
 		throw std::runtime_error("Map must have exactly 1 player (found " + std::to_string(_players) + ")");
@@ -159,12 +114,6 @@ char Map::at(int row, int col) const
 	return _grid[row][col];
 }
 
-void Map::set(int row, int col, char c)
-{
-	_grid[row][col] = c;
-
-}
-
 int  Map::rows() const
 {
 	return _rows;
@@ -175,30 +124,38 @@ int  Map::cols() const
 	return _cols;
 }
 
-int  Map::collectibles() const
+bool Map::isWall(int row, int col) const
 {
-	return _collectibles;
+	if (row < 0 || row >= _rows || col < 0 || col >= _cols)
+		return true;
+	return _grid[row][col] == WALL;
 }
 
-Vec2 Map::playerPos() const
+void Map::extractEntities(PlayerObj &player, std::vector<Entity> &entities)
 {
-	return _playerPos;
-}
-
-Vec2 Map::exitPos() const
-{
-	return _exitPos;
-}
-
-void Map::removeCollectible(int row, int col)
-{
-	_grid[row][col] = FLOOR;
-	_collectibles--;
-}
-
-void Map::movePlayer(int new_row, int new_col)
-{
-	_grid[_playerPos.y][_playerPos.x] = FLOOR;
-	_playerPos = {new_col, new_row};
-	_grid[new_row][new_col] = PLAYER;
+	entities.clear();
+	for (int r = 0; r < _rows; r++)
+	{
+		for (int c = 0; c < _cols; c++)
+		{
+			char ch = _grid[r][c];
+			if (ch == PLAYER)
+			{
+				player.pos = { (float)(c * TILE_SIZE), (float)(r * TILE_SIZE) };
+				player.vel = { 0, 0 };
+				player.collected = 0;
+				_grid[r][c] = FLOOR;
+			}
+			else if (ch == COLLECT)
+			{
+				entities.push_back({ EntityKind::Collectible, {c, r}, true });
+				_grid[r][c] = FLOOR;
+			}
+			else if (ch == EXIT)
+			{
+				entities.push_back({ EntityKind::Exit, {c, r}, true });
+				_grid[r][c] = FLOOR;
+			}
+		}
+	}
 }

@@ -4,7 +4,6 @@
 # include <SDL2/SDL.h>
 # include <SDL2/SDL_image.h>
 # include <iostream>
-# include <fstream>
 # include <string>
 # include <vector>
 # include <algorithm>
@@ -16,10 +15,9 @@ constexpr char	WALL    = '1';
 constexpr char	PLAYER  = 'P';
 constexpr char	EXIT    = 'E';
 constexpr char	COLLECT = 'C';
+
 constexpr int	TILE_SIZE   = 64;
-constexpr int	VIEWPORT_W  = 800;
-constexpr int	VIEWPORT_H  = 600;
-constexpr int	MOVE_FRAMES = 4;
+constexpr float	PLAYER_SPEED = 300.0f;
 
 struct Vec2 {
 	int x = 0;
@@ -31,23 +29,35 @@ struct Vec2f {
 	float y = 0.0f;
 };
 
+enum class EntityKind { Collectible, Exit };
+
+struct Entity {
+	EntityKind	kind;
+	Vec2		tile;
+	bool		active = true;
+};
+
+struct PlayerObj {
+	Vec2f	pos;
+	Vec2f	vel;
+	int		collected = 0;
+};
+
+std::vector<std::string> generateMaze(int level);
+
 class Map {
 
 	public:
 		Map() = default;
-		void	load(const std::string &path);
+		void	loadFromGrid(std::vector<std::string> grid);
 		void	validate();
 
+		void	extractEntities(PlayerObj &player, std::vector<Entity> &entities);
+
 		char	at(int row, int col) const;
-		void	set(int row, int col, char c);
 		int		rows() const;
 		int		cols() const;
-		int		collectibles() const;
-		Vec2	playerPos() const;
-		Vec2	exitPos() const;
-
-		void	removeCollectible(int row, int col);
-		void	movePlayer(int new_row, int new_col);
+		bool	isWall(int row, int col) const;
 
 	private:
 		std::vector<std::string>	_grid;
@@ -57,12 +67,7 @@ class Map {
 		int							_exits = 0;
 		int							_players = 0;
 		Vec2						_playerPos;
-		Vec2						_exitPos;
 
-		void	_readFile(const std::string &path);
-		void	_trimRows();
-		void	_checkFormat(const std::string &path);
-		void	_checkEmptyLines();
 		void	_checkWalls();
 		void	_countElements();
 		void	_checkValidChars();
@@ -77,11 +82,13 @@ class Renderer {
 		Renderer(const Renderer &)            = delete;
 		Renderer &operator=(const Renderer &) = delete;
 
-		void	init(const Map &map);
-		void	render(const Map &map, Vec2f playerPx);
+		void	init(const Map &map, Vec2f playerPx);
+		void	render(const Map &map, const PlayerObj &player,
+					   const std::vector<Entity> &entities, int totalCollectibles);
+		void	renderPauseOverlay(int selectedItem, int level);
+		void	present();
 		void	updateCamera(const Map &map, Vec2f playerPx);
-		void	markMapDirty();
-		SDL_Window	*window() const;
+		void	rebuildMapTex(const Map &map);
 
 	private:
 		SDL_Window *_window = nullptr;
@@ -96,36 +103,49 @@ class Renderer {
 		SDL_Texture	*_texExit = nullptr;
 		SDL_Texture	*_texExitOpen = nullptr;
 		SDL_Texture	*_mapTex = nullptr;
-		bool		_mapDirty = true;
 		int			_mapTexW = 0;
 		int			_mapTexH = 0;
 
+		SDL_Texture	*_pauseTex = nullptr;
+		int			_cachedPauseSel = -1;
+		int			_cachedPauseLvl = -1;
+
 		void			_loadTextures();
-		void			_rebuildMapTex(const Map &map);
+		void			_buildMapTex(const Map &map);
 		SDL_Texture		*_loadOrFallback(const std::string &path, Uint8 r, Uint8 g, Uint8 b);
 		SDL_Texture		*_makeColor(Uint8 r, Uint8 g, Uint8 b);
 		void			_drawTile(SDL_Texture *tex, int col, int row);
 		void			_drawTileAt(SDL_Texture *tex, float px, float py);
+		void			_drawRect(int x, int y, int w, int h, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
+		void			_drawFilledRect(int x, int y, int w, int h, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
+		void			_buildPauseOverlay(int selectedItem, int level, int winW, int winH);
 };
 
 class Game {
 	public:
-		Game(const std::string &mapPath);
+		Game();
 		void	run();
 
 	private:
-		Map			_map;
-		Renderer	_renderer;
-		bool		_running = false;
-		bool		_animating = false;
-		int			_animFrame = 0;
-		Vec2f		_playerPx;
-		Vec2f		_targetPx;
-		Vec2f		_startPx;
+		Map					_map;
+		Renderer			_renderer;
+		PlayerObj			_player;
+		std::vector<Entity>	_entities;
+		int					_totalCollectibles = 0;
+		int					_level = 1;
+		bool				_running = false;
+		bool				_paused = false;
+		int					_pauseSelection = 0;
 
+		Uint32				_lastTick = 0;
+		bool				_rendererReady = false;
+
+		void	_loadLevel();
 		void	_handleEvents();
-		void	_movePlayer(int dx, int dy);
-		void	_update();
+		void	_handlePauseEvents();
+		void	_update(float dt);
+		bool	_canMoveTo(float px, float py) const;
+		void	_checkEntityCollisions();
 };
 
 #endif
