@@ -58,27 +58,36 @@ void Map::_flood(int col, int row,
 	std::vector<std::vector<bool>> &visited,
 	bool passExit, int &collectFound, bool &exitFound)
 {
-	if (col < 0 || row < 0 || col >= _cols || row >= _rows)
-		return;
-	if (visited[row][col])
-		return ;
-	char c = _grid[row][col];
-	if (c == WALL)
-		return ;
-	if (c == EXIT && !passExit)
+	std::stack<std::pair<int,int>> stk;
+	stk.push({col, row});
+
+	while (!stk.empty())
 	{
-		exitFound = true;
-		return ;
+		auto [c, r] = stk.top();
+		stk.pop();
+
+		if (c < 0 || r < 0 || c >= _cols || r >= _rows)
+			continue;
+		if (visited[r][c])
+			continue;
+		char ch = _grid[r][c];
+		if (ch == WALL)
+			continue;
+		if (ch == EXIT && !passExit)
+		{
+			exitFound = true;
+			continue;
+		}
+		visited[r][c] = true;
+		if (ch == COLLECT)
+			collectFound++;
+		if (ch == EXIT)
+			exitFound = true;
+		stk.push({c + 1, r});
+		stk.push({c - 1, r});
+		stk.push({c, r + 1});
+		stk.push({c, r - 1});
 	}
-	visited[row][col] = true;
-	if (c == COLLECT)
-		collectFound++;
-	if (c == EXIT)
-		exitFound = true;
-	_flood(col + 1, row, visited, passExit, collectFound, exitFound);
-	_flood(col - 1, row, visited, passExit, collectFound, exitFound);
-	_flood(col, row + 1, visited, passExit, collectFound, exitFound);
-	_flood(col, row - 1, visited, passExit, collectFound, exitFound);
 }
 
 void Map::_checkAccess()
@@ -87,15 +96,9 @@ void Map::_checkAccess()
 	int collectFound = 0;
 	bool exitFound = false;
 
-	_flood(_playerPos.x, _playerPos.y, visited, false, collectFound, exitFound);
+	_flood(_playerPos.x, _playerPos.y, visited, true, collectFound, exitFound);
 	if (collectFound != _collectibles)
 		throw std::runtime_error("Not all collectibles are reachable (" + std::to_string(collectFound) + "/" + std::to_string(_collectibles) + ")");
-
-	for (auto &row : visited)
-		std::fill(row.begin(), row.end(), false);
-	collectFound = 0;
-	exitFound = false;
-	_flood(_playerPos.x, _playerPos.y, visited, true, collectFound, exitFound);
 	if (!exitFound)
 		throw std::runtime_error("Exit is not reachable");
 }

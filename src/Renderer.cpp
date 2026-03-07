@@ -37,6 +37,7 @@ void Renderer::init(const Map &map, Vec2f playerPx)
 	if (!_renderer)
 		throw std::runtime_error(std::string("SDL_CreateRenderer: ") + SDL_GetError());
 
+	SDL_RenderSetLogicalSize(_renderer, 1920, 1080);
 	_loadTextures();
 	SDL_SetRenderDrawBlendMode(_renderer, SDL_BLENDMODE_BLEND);
 	_buildMapTex(map);
@@ -86,7 +87,7 @@ void Renderer::_loadTextures()
 void Renderer::updateCamera(const Map &map, Vec2f playerPx)
 {
 	int winW, winH;
-	SDL_GetWindowSize(_window, &winW, &winH);
+	SDL_RenderGetLogicalSize(_renderer, &winW, &winH);
 
 	int mapPxW = map.cols() * TILE_SIZE;
 	int mapPxH = map.rows() * TILE_SIZE;
@@ -174,7 +175,7 @@ void Renderer::render(const Map &, const PlayerObj &player,
                       const std::vector<Entity> &entities, int totalCollectibles)
 {
 	int winW, winH;
-	SDL_GetWindowSize(_window, &winW, &winH);
+	SDL_RenderGetLogicalSize(_renderer, &winW, &winH);
 
 	SDL_Rect src = { std::max(0, _camX), std::max(0, _camY), winW, winH };
 	SDL_Rect dst = { 0, 0, winW, winH };
@@ -365,7 +366,7 @@ void Renderer::_buildPauseOverlay(int selectedItem, int level, int winW, int win
 void Renderer::renderPauseOverlay(int selectedItem, int level)
 {
 	int winW, winH;
-	SDL_GetWindowSize(_window, &winW, &winH);
+	SDL_RenderGetLogicalSize(_renderer, &winW, &winH);
 
 	if (!_pauseTex || _cachedPauseSel != selectedItem || _cachedPauseLvl != level)
 	{

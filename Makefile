@@ -1,6 +1,6 @@
 NAME			=	so_short
 CXX				=	g++
-CXXFLAGS		=	-Wall -Wextra -Werror -std=c++17
+CXXFLAGS		=	-Wall -Wextra -Werror -std=c++17 -O2
 RM				=	rm -f
 
 SDL_CFLAGS		=	$(shell sdl2-config --cflags)

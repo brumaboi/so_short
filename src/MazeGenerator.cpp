@@ -24,7 +24,10 @@ static void carveMaze(std::vector<std::string> &grid, int rows, int cols,
 
 		int order[] = {0, 1, 2, 3};
 		for (int i = 3; i > 0; --i)
-			std::swap(order[i], order[rng() % (i + 1)]);
+		{
+			std::uniform_int_distribution<int> dist(0, i);
+			std::swap(order[i], order[dist(rng)]);
+		}
 
 		bool pushed = false;
 		for (int i = 0; i < 4; i++)
@@ -130,7 +133,10 @@ static void placeHoles(std::vector<std::string> &grid, int rows, int cols,
 				candidates.push_back({r, c});
 
 	for (int i = (int)candidates.size() - 1; i > 0; --i)
-		std::swap(candidates[i], candidates[rng() % (i + 1)]);
+	{
+		std::uniform_int_distribution<int> dist(0, i);
+		std::swap(candidates[i], candidates[dist(rng)]);
+	}
 
 	auto isAdjacentHole = [&](int r, int c) -> bool {
 		constexpr int dr[] = {0, 0, 1, -1};
@@ -174,7 +180,10 @@ static void placeCollectibles(std::vector<std::string> &grid, int rows, int cols
 	int minSpacing = std::max(2, std::min(rows, cols) / 5);
 
 	for (int i = (int)floors.size() - 1; i > 0; --i)
-		std::swap(floors[i], floors[rng() % (i + 1)]);
+	{
+		std::uniform_int_distribution<int> dist(0, i);
+		std::swap(floors[i], floors[dist(rng)]);
+	}
 
 	std::vector<std::pair<int,int>> placed;
 

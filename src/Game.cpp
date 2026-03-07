@@ -30,12 +30,15 @@ void Game::_loadLevel()
 void Game::run()
 {
 	_running = true;
+	constexpr Uint32 FRAME_MS = 16;
 	while (_running)
 	{
-		Uint32 now = SDL_GetTicks();
-		float dt = (now - _lastTick) / 1000.0f;
+		Uint32 frameStart = SDL_GetTicks();
+		Uint32 elapsed = frameStart - _lastTick;
+		if (elapsed == 0) elapsed = 1;
+		float dt = elapsed / 1000.0f;
 		if (dt > 0.05f) dt = 0.05f;
-		_lastTick = now;
+		_lastTick = frameStart;
 
 		if (_paused)
 		{
@@ -43,6 +46,7 @@ void Game::run()
 			_renderer.render(_map, _player, _entities, _totalCollectibles);
 			_renderer.renderPauseOverlay(_pauseSelection, _level);
 			_renderer.present();
+			SDL_WaitEvent(nullptr);
 		}
 		else
 		{
@@ -51,6 +55,9 @@ void Game::run()
 			_renderer.updateCamera(_map, _player.pos);
 			_renderer.render(_map, _player, _entities, _totalCollectibles);
 			_renderer.present();
+			Uint32 frameTime = SDL_GetTicks() - frameStart;
+			if (frameTime < FRAME_MS)
+				SDL_Delay(FRAME_MS - frameTime);
 		}
 	}
 }
@@ -147,7 +154,7 @@ void Game::_update(float dt)
 
 	if (_player.vel.x != 0 && _player.vel.y != 0)
 	{
-		float inv = 1.0f / std::sqrt(2.0f);
+		constexpr float inv = 0.70710678f;
 		_player.vel.x *= inv;
 		_player.vel.y *= inv;
 	}
