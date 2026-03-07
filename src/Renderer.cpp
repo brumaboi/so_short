@@ -9,6 +9,7 @@ Renderer::~Renderer()
 	destroy(_texCollect);
 	destroy(_texExit);
 	destroy(_texExitOpen);
+	destroy(_texHole);
 	if (_mapTex)   { SDL_DestroyTexture(_mapTex);   _mapTex = nullptr; }
 	if (_pauseTex) { SDL_DestroyTexture(_pauseTex); _pauseTex = nullptr; }
 	if (_renderer) { SDL_DestroyRenderer(_renderer); _renderer = nullptr; }
@@ -79,6 +80,7 @@ void Renderer::_loadTextures()
 	_texCollect  = _loadOrFallback("textures/collectible.png", 255, 215,   0);
 	_texExit     = _loadOrFallback("textures/exit.png",        180,   0,   0);
 	_texExitOpen = _loadOrFallback("textures/open_exit.png",     0, 200,   0);
+	_texHole     = _loadOrFallback("textures/hole.png",          20,  20,  20);
 }
 
 void Renderer::updateCamera(const Map &map, Vec2f playerPx)
@@ -153,6 +155,8 @@ void Renderer::_buildMapTex(const Map &map)
 			_drawTile(_texFloor, c, r);
 			if (map.at(r, c) == WALL)
 				_drawTile(_texWall, c, r);
+			else if (map.at(r, c) == HOLE)
+				_drawTile(_texHole, c, r);
 		}
 	}
 
@@ -205,7 +209,19 @@ void Renderer::render(const Map &, const PlayerObj &player,
 			_drawTile(allCollected ? _texExitOpen : _texExit, e.tile.x, e.tile.y);
 	}
 
-	_drawTileAt(_texPlayer, player.pos.x, player.pos.y);
+	_drawTileAt(_texPlayer, player.pos.x, player.pos.y - player.jumpZ);
+
+	if (player.isJumping || player.isFalling)
+	{
+		float shadowScale = 1.0f - player.jumpZ / 300.0f;
+		if (shadowScale < 0.3f) shadowScale = 0.3f;
+		if (shadowScale > 1.0f) shadowScale = 1.0f;
+		int sw = (int)(TILE_SIZE * 0.6f * shadowScale);
+		int sh = (int)(TILE_SIZE * 0.2f * shadowScale);
+		int sx = (int)(player.pos.x) - _camX + (TILE_SIZE - sw) / 2;
+		int sy = (int)(player.pos.y) - _camY + TILE_SIZE - sh;
+		_drawFilledRect(sx, sy, sw, sh, 0, 0, 0, (Uint8)(100 * shadowScale));
+	}
 }
 
 void Renderer::_drawFilledRect(int x, int y, int w, int h,

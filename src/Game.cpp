@@ -16,6 +16,7 @@ void Game::_loadLevel()
 	_map.loadFromGrid(std::move(grid));
 	_map.validate();
 	_map.extractEntities(_player, _entities);
+	_spawnPos = _player.pos;
 
 	_totalCollectibles = 0;
 	for (auto &e : _entities)
@@ -106,8 +107,38 @@ void Game::_checkEntityCollisions()
 
 void Game::_update(float dt)
 {
+	if (_player.isFalling)
+	{
+		_player.jumpZ -= 300.0f * dt;
+		if (_player.jumpZ <= -TILE_SIZE)
+		{
+			_player.isFalling = false;
+			_player.jumpZ = 0.0f;
+			_player.pos = _spawnPos;
+		}
+		return;
+	}
+
 	const Uint8 *keys = SDL_GetKeyboardState(nullptr);
 	_player.vel = { 0, 0 };
+
+	if (keys[SDL_SCANCODE_SPACE] && !_player.isJumping)
+	{
+		_player.isJumping = true;
+		_player.jumpVelZ = JUMP_VELOCITY;
+	}
+
+	if (_player.isJumping)
+	{
+		_player.jumpVelZ -= JUMP_GRAVITY * dt;
+		_player.jumpZ += _player.jumpVelZ * dt;
+		if (_player.jumpZ <= 0.0f)
+		{
+			_player.jumpZ = 0.0f;
+			_player.jumpVelZ = 0.0f;
+			_player.isJumping = false;
+		}
+	}
 
 	if (keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP])    _player.vel.y = -PLAYER_SPEED;
 	if (keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_DOWN])  _player.vel.y =  PLAYER_SPEED;
@@ -130,6 +161,26 @@ void Game::_update(float dt)
 		_player.pos.y = newY;
 
 	_checkEntityCollisions();
+
+	if (!_player.isJumping)
+		_checkHoleFall();
+}
+
+void Game::_checkHoleFall()
+{
+	float cx = _player.pos.x + TILE_SIZE / 2.0f;
+	float cy = _player.pos.y + TILE_SIZE / 2.0f;
+	int col = (int)(cx) / TILE_SIZE;
+	int row = (int)(cy) / TILE_SIZE;
+
+	if (row >= 0 && row < _map.rows() && col >= 0 && col < _map.cols())
+	{
+		if (_map.at(row, col) == HOLE)
+		{
+			_player.isFalling = true;
+			_player.jumpZ = 0.0f;
+		}
+	}
 }
 
 void Game::_handlePauseEvents()

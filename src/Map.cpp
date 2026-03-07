@@ -28,7 +28,7 @@ void Map::_checkValidChars()
 		for (int j = 0; j < _cols; j++)
 		{
 			char c = _grid[i][j];
-			if (c != FLOOR && c != WALL && c != PLAYER && c != EXIT && c != COLLECT)
+			if (c != FLOOR && c != WALL && c != PLAYER && c != EXIT && c != COLLECT && c != HOLE)
 				throw std::runtime_error(std::string("Invalid character '") + c + "' at (" + std::to_string(i) + "," + std::to_string(j) + ")");
 		}
 }
@@ -144,6 +144,10 @@ void Map::extractEntities(PlayerObj &player, std::vector<Entity> &entities)
 				player.pos = { (float)(c * TILE_SIZE), (float)(r * TILE_SIZE) };
 				player.vel = { 0, 0 };
 				player.collected = 0;
+				player.jumpZ = 0.0f;
+				player.jumpVelZ = 0.0f;
+				player.isJumping = false;
+				player.isFalling = false;
 				_grid[r][c] = FLOOR;
 			}
 			else if (ch == COLLECT)

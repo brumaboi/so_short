@@ -22,6 +22,9 @@ constexpr char	COLLECT = 'C';
 
 constexpr int	TILE_SIZE   = 64;
 constexpr float	PLAYER_SPEED = 300.0f;
+constexpr char	HOLE    = 'H';
+constexpr float	JUMP_VELOCITY = 400.0f;
+constexpr float	JUMP_GRAVITY  = 900.0f;
 
 struct Vec2 {
 	int x = 0;
@@ -45,6 +48,10 @@ struct PlayerObj {
 	Vec2f	pos;
 	Vec2f	vel;
 	int		collected = 0;
+	float	jumpZ    = 0.0f;
+	float	jumpVelZ = 0.0f;
+	bool	isJumping = false;
+	bool	isFalling = false;
 };
 
 std::vector<std::string> generateMaze(int level);
@@ -105,8 +112,7 @@ class Renderer {
 		SDL_Texture	*_texPlayer = nullptr;
 		SDL_Texture	*_texCollect = nullptr;
 		SDL_Texture	*_texExit = nullptr;
-		SDL_Texture	*_texExitOpen = nullptr;
-		SDL_Texture	*_mapTex = nullptr;
+		SDL_Texture	*_texExitOpen = nullptr;	SDL_Texture	*_texHole = nullptr;		SDL_Texture	*_mapTex = nullptr;
 		int			_mapTexW = 0;
 		int			_mapTexH = 0;
 
@@ -150,6 +156,8 @@ class Game {
 		void	_update(float dt);
 		bool	_canMoveTo(float px, float py) const;
 		void	_checkEntityCollisions();
+		void	_checkHoleFall();
+		Vec2f	_spawnPos;
 };
 
 #endif

@@ -108,7 +108,7 @@ reachableFloors(const std::vector<std::string> &grid, int rows, int cols,
 				continue;
 			if (visited[nr][nc])
 				continue;
-			if (grid[nr][nc] == WALL)
+			if (grid[nr][nc] == WALL || grid[nr][nc] == HOLE)
 				continue;
 			if (nr == exitR && nc == exitC)
 				continue;
@@ -117,6 +117,52 @@ reachableFloors(const std::vector<std::string> &grid, int rows, int cols,
 		}
 	}
 	return result;
+}
+
+static void placeHoles(std::vector<std::string> &grid, int rows, int cols,
+                       int count, int playerR, int playerC,
+                       int exitR, int exitC, std::mt19937 &rng)
+{
+	std::vector<std::pair<int,int>> candidates;
+	for (int r = 1; r < rows - 1; r++)
+		for (int c = 1; c < cols - 1; c++)
+			if (grid[r][c] == FLOOR)
+				candidates.push_back({r, c});
+
+	for (int i = (int)candidates.size() - 1; i > 0; --i)
+		std::swap(candidates[i], candidates[rng() % (i + 1)]);
+
+	auto isAdjacentHole = [&](int r, int c) -> bool {
+		constexpr int dr[] = {0, 0, 1, -1};
+		constexpr int dc[] = {1, -1, 0, 0};
+		for (int d = 0; d < 4; d++)
+		{
+			int nr = r + dr[d];
+			int nc = c + dc[d];
+			if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] == HOLE)
+				return true;
+		}
+		return false;
+	};
+
+	int placed = 0;
+	for (auto &[r, c] : candidates)
+	{
+		if (placed >= count)
+			break;
+		if (r == playerR && c == playerC)
+			continue;
+		if (r == exitR && c == exitC)
+			continue;
+		if (std::abs(r - playerR) + std::abs(c - playerC) <= 2)
+			continue;
+		if (std::abs(r - exitR) + std::abs(c - exitC) <= 1)
+			continue;
+		if (isAdjacentHole(r, c))
+			continue;
+		grid[r][c] = HOLE;
+		placed++;
+	}
 }
 
 static void placeCollectibles(std::vector<std::string> &grid, int rows, int cols,
@@ -250,6 +296,11 @@ std::vector<std::string> generateMaze(int level)
 	if (level >= 4)
 		nCollect = 2 + (level - 4) / 10;
 	placeCollectibles(grid, rows, cols, nCollect, exitR, exitC, rng);
+
+	int nHoles = 0;
+	if (level >= 2)
+		nHoles = 1 + (level - 2) / 2;
+	placeHoles(grid, rows, cols, nHoles, 1, 1, exitR, exitC, rng);
 
 	return grid;
 }
